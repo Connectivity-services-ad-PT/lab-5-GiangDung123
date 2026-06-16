@@ -1,14 +1,17 @@
 openapi: 3.1.0
 info:
-  title: FIT4110 Lab 05 - IoT Ingestion API
-  version: 0.5.0
+  title: FIT4110 Lab 04 - IoT Ingestion API
+  version: 0.4.0
   description: |
-    Contract dùng cho Lab 05 Docker Compose readiness, kế thừa logic của Lab 03/04.
+    Contract dùng cho Lab 04 Docker packaging, được đồng bộ lại với logic Lab 03.
     Payload chính dùng các trường device_id, metric, value, unit và timestamp.
-    Boundary minh hoạ cho temperature là -40 đến 80.
+    Boundary minh họa cho temperature là -40 đến 80.
+  contact:
+    name: FIT4110 Lab
+    email: lab@iot.local
 servers:
   - url: http://localhost:8000
-    description: Local or Docker Compose API service
+    description: Local or Docker container service
   - url: http://localhost:4010
     description: Prism mock server
 tags:
@@ -40,7 +43,7 @@ paths:
                   value:
                     status: ok
                     service: iot-ingestion
-                    version: 0.5.0
+                    version: 0.4.0
 
   /readings:
     post:
@@ -191,6 +194,7 @@ paths:
       tags: [readings]
       operationId: getReadingById
       summary: Lấy chi tiết một bản ghi cảm biến
+      description: Trả về chi tiết một sensor reading theo reading_id
       parameters:
         - name: reading_id
           in: path
@@ -268,7 +272,7 @@ components:
           minimum: -40
           maximum: 80
           description: |
-            Giá trị mẫu dùng cho boundary test trong Lab 03 và Lab 04.
+            Giá trị mẫu dùng cho boundary test trong Lab 03 và Lab 04.
             Với metric=temperature, miền hợp lệ minh họa là -40 đến 80.
           example: 31.5
         unit:
@@ -327,7 +331,7 @@ components:
           example: iot-ingestion
         version:
           type: string
-          example: 0.5.0
+          example: 0.4.0
 
     ProblemDetails:
       type: object
