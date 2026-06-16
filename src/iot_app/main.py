@@ -15,6 +15,7 @@ from fastapi import (
 )
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from pydantic import BaseModel, Field
 
 # ================= CONFIG =================
@@ -190,12 +191,14 @@ async def validation_handler(request: Request, exc: RequestValidationError):
 
 
 # ================= ROOT =================
+
 @app.get("/")
 def root():
     return {
         "service": SERVICE_NAME,
         "version": SERVICE_VERSION,
         "status": "running",
+        "ai_service": AI_SERVICE_URL
     }
 
 
@@ -303,3 +306,36 @@ def get_reading(reading_id: str):
             f"/readings/{reading_id}",
         ),
     )
+from pydantic import BaseModel
+
+class VisionRequest(BaseModel):
+    image: str
+
+@app.post("/vision", response_model=VisionResponse)
+def vision(req: VisionRequest):
+
+    try:
+
+        response = requests.post(
+            f"{AI_SERVICE_URL}/predict",
+            json={
+                "image": req.image
+            },
+            timeout=5
+        )
+
+        response.raise_for_status()
+
+        return response.json()
+
+    except requests.exceptions.RequestException as ex:
+
+        raise HTTPException(
+            status_code=503,
+            detail=build_problem(
+                503,
+                "AI Service Unavailable",
+                str(ex),
+                "/vision"
+            )
+        )

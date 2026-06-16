@@ -1,44 +1,54 @@
-"""
-Simple AI service mock for Lab 05.
-
-This service exposes two endpoints:
-
-* `GET /health` – returns status, service name and version.
-* `POST /predict` – returns a dummy list of detected objects and confidences.
-
-You can replace this file with your actual inference code (e.g. YOLOv8 model).
-"""
-
 from fastapi import FastAPI
+from detector import detect
 from pydantic import BaseModel
-from typing import List
-
-SERVICE_NAME = "ai-service"
-SERVICE_VERSION = "0.5.0"
-
-app = FastAPI(
-    title="FIT4110 Lab 05 - AI Service",
-    version=SERVICE_VERSION,
-    description="Mock AI service used in Docker Compose stack.",
+from models import (
+    PredictionRequest,
+    PredictionResponse,
+    HealthResponse,
+    Detection
 )
 
+app = FastAPI(
+    title="AI Vision Service",
+    version="0.1.0"
+)
+class PredictRequest(BaseModel):
+    image: str
 
-class Prediction(BaseModel):
-    objects: List[str]
-    confidence: List[float]
+@app.get("/health", response_model=HealthResponse)
+def health():
+
+    return HealthResponse(
+        status="ok",
+        service="ai-vision",
+        model="mock-yolov8",
+        version="0.1.0"
+    )
+    
 
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "service": SERVICE_NAME, "version": SERVICE_VERSION}
+@app.get("/models")
+def models():
+
+    return {
+        "current": "mock-yolov8",
+        "available": [
+            "mock-yolov8",
+            "yolov8n",
+            "mediapipe"
+        ]
+    }
 
 
-@app.post("/predict", response_model=Prediction)
-def predict() -> Prediction:
-    # This dummy implementation always returns two objects
-    return Prediction(objects=["person", "bicycle"], confidence=[0.98, 0.85])
+@app.post("/predict", response_model=PredictionResponse)
+def predict(req: PredictionRequest):
 
+    detections = detect(req.image)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    return PredictionResponse(
+        detections=[
+            Detection(**item)
+            for item in detections
+        ],
+        processing_ms=42
+    )
