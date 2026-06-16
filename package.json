@@ -1,14 +1,21 @@
 {
-  "name": "fit4110-lab04-docker-packaging",
-  "version": "0.1.0",
-  "description": "FIT4110 Lab 04 - Docker packaging and Newman verification for Smart Campus services",
+  "name": "fit4110-lab05-docker-compose-readiness",
+  "version": "0.5.0",
+  "description": "FIT4110 Lab 05 - Docker Compose Readiness",
   "private": true,
+
   "scripts": {
     "mock:iot": "prism mock contracts/iot-ingestion.openapi.yaml --host 0.0.0.0 --port 4010",
+
     "lint:openapi": "spectral lint contracts/iot-ingestion.openapi.yaml --ruleset .spectral.yaml",
+
     "test:mock": "newman run postman/collections/FIT4110_lab04_iot_docker.postman_collection.json -e postman/environments/FIT4110_lab04_mock.postman_environment.json -r cli,junit,htmlextra --reporter-junit-export reports/newman-lab04-mock.xml --reporter-htmlextra-export reports/newman-lab04-mock.html",
-    "test:local": "newman run postman/collections/FIT4110_lab04_iot_docker.postman_collection.json -e postman/environments/FIT4110_lab04_local.postman_environment.json -r cli,junit,htmlextra --reporter-junit-export reports/newman-lab04-local.xml --reporter-htmlextra-export reports/newman-lab04-local.html"
+
+    "test:local": "newman run postman/collections/FIT4110_lab04_iot_docker.postman_collection.json -e postman/environments/FIT4110_lab04_local.postman_environment.json -r cli,junit,htmlextra --reporter-junit-export reports/newman-lab04-local.xml --reporter-htmlextra-export reports/newman-lab04-local.html",
+
+    "test:compose": "newman run postman/collections/FIT4110_lab04_iot_docker.postman_collection.json -e postman/environments/FIT4110_lab05_local.postman_environment.json -r cli,junit,htmlextra --reporter-junit-export reports/newman-lab05-compose.xml --reporter-htmlextra-export reports/newman-lab05-compose.html"
   },
+
   "devDependencies": {
     "@stoplight/prism-cli": "^5.10.0",
     "@stoplight/spectral-cli": "^6.13.1",
