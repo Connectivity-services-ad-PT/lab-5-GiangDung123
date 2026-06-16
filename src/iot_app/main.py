@@ -3,9 +3,15 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional
 
+import requests
 from fastapi import (
-    Depends, FastAPI, Header, HTTPException,
-    Query, Request, Response, status
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
 )
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -16,12 +22,17 @@ SERVICE_NAME = os.getenv("SERVICE_NAME", "iot-ingestion")
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.5.0")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 
-# Env Validation (Fail Fast)
+AI_SERVICE_URL = os.getenv(
+    "AI_SERVICE_URL",
+    "http://ai-service:9000"
+)
+
+# ===== Fail Fast =====
 required_envs = {
     "AUTH_TOKEN": AUTH_TOKEN
 }
 
-missing = [name for name, value in required_envs.items() if not value]
+missing = [k for k, v in required_envs.items() if not v]
 
 if missing:
     raise RuntimeError(
@@ -29,10 +40,9 @@ if missing:
     )
 
 app = FastAPI(
-    title="FIT4110 Lab 04 - IoT Ingestion Service",
+    title="FIT4110 Lab 05 - IoT Ingestion Service",
     version=SERVICE_VERSION,
 )
-
 
 # ================= ENUM =================
 class SensorMetric(str, Enum):
@@ -106,20 +116,28 @@ def build_problem(status_code: int, title: str, detail: str, instance: str = Non
     }
 
 
-# ================= AUTH FIX (QUAN TRỌNG NHẤT) =================
+# ================= AUTH =================
 def verify_bearer_token(
     authorization: Optional[str] = Header(default=None, convert_underscores=False)
 ):
     if authorization is None:
         raise HTTPException(
             status_code=401,
-            detail=build_problem(401, "Unauthorized", "Missing Authorization header"),
+            detail=build_problem(
+                401,
+                "Unauthorized",
+                "Missing Authorization header"
+            ),
         )
 
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
-            detail=build_problem(401, "Unauthorized", "Invalid bearer format"),
+            detail=build_problem(
+                401,
+                "Unauthorized",
+                "Invalid bearer format"
+            ),
         )
 
     token = authorization.split(" ", 1)[1]
@@ -127,11 +145,15 @@ def verify_bearer_token(
     if token != AUTH_TOKEN:
         raise HTTPException(
             status_code=401,
-            detail=build_problem(401, "Unauthorized", "Invalid bearer token"),
+            detail=build_problem(
+                401,
+                "Unauthorized",
+                "Invalid bearer token"
+            ),
         )
 
 
-# ================= EXCEPTION HANDLER FIX =================
+# ================= ERROR HANDLERS =================
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if isinstance(exc.detail, dict):
@@ -151,6 +173,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_handler(request: Request, exc: RequestValidationError):
     err = exc.errors()[0] if exc.errors() else {}
+
     loc = ".".join(map(str, err.get("loc", [])))
     msg = err.get("msg", "validation error")
 
@@ -166,13 +189,44 @@ async def validation_handler(request: Request, exc: RequestValidationError):
     )
 
 
-# ================= ENDPOINTS =================
+# ================= ROOT =================
+@app.get("/")
+def root():
+    return {
+        "service": SERVICE_NAME,
+        "version": SERVICE_VERSION,
+        "status": "running",
+    }
+
+
+# ================= HEALTH =================
 @app.get("/health", response_model=HealthResponse)
 def health():
-    return HealthResponse(status="ok", service=SERVICE_NAME, version=SERVICE_VERSION)
+    return HealthResponse(
+        status="ok",
+        service=SERVICE_NAME,
+        version=SERVICE_VERSION,
+    )
 
 
-# ===== POST CREATE (FIX WARNING + 80 RULE) =====
+# ================= AI HEALTH =================
+@app.get("/ai/health")
+def ai_health():
+    try:
+        r = requests.get(f"{AI_SERVICE_URL}/health", timeout=5)
+        return r.json()
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=build_problem(
+                503,
+                "AI Service Unavailable",
+                str(e),
+            ),
+        )
+
+
+# ================= CREATE =================
 @app.post(
     "/readings",
     response_model=SensorReadingCreated,
@@ -181,8 +235,10 @@ def health():
 )
 def create_reading(payload: SensorReadingCreate, response: Response):
 
-    # ⚠️ FIX: chỉ >= 70 mới warning theo lab
-    if payload.metric == SensorMetric.temperature and payload.value >= 70:
+    if (
+        payload.metric == SensorMetric.temperature
+        and payload.value >= 70
+    ):
         response.headers["X-Warning"] = "high-temperature"
 
     rid = next_reading_id()
@@ -207,40 +263,36 @@ def create_reading(payload: SensorReadingCreate, response: Response):
     )
 
 
-# ===== GET LATEST =====
-@app.get("/readings/latest", dependencies=[Depends(verify_bearer_token)])
+# ================= LATEST =================
+@app.get(
+    "/readings/latest",
+    dependencies=[Depends(verify_bearer_token)],
+)
 def latest_readings(
     device_id: Optional[str] = Query(None),
     limit: int = Query(10, ge=1, le=100),
 ):
+
     items = READINGS
 
     if device_id:
         items = [i for i in items if i["device_id"] == device_id]
 
     return {
-        "items": [
-            {
-                "reading_id": i["reading_id"],
-                "device_id": i["device_id"],
-                "metric": i["metric"],
-                "value": i["value"],
-                "unit": i["unit"],
-                "timestamp": i["timestamp"],
-                "created_at": i["created_at"],
-            }
-            for i in items[-limit:]
-        ]
+        "items": items[-limit:]
     }
 
 
-# ===== GET BY ID =====
-@app.get("/readings/{reading_id}", dependencies=[Depends(verify_bearer_token)])
+# ================= GET BY ID =================
+@app.get(
+    "/readings/{reading_id}",
+    dependencies=[Depends(verify_bearer_token)],
+)
 def get_reading(reading_id: str):
 
-    for i in READINGS:
-        if i["reading_id"] == reading_id:
-            return i
+    for item in READINGS:
+        if item["reading_id"] == reading_id:
+            return item
 
     raise HTTPException(
         status_code=404,
@@ -250,4 +302,4 @@ def get_reading(reading_id: str):
             f"Reading {reading_id} not found",
             f"/readings/{reading_id}",
         ),
-    )   
+    )
