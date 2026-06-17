@@ -1,13 +1,14 @@
 from fastapi import FastAPI
-from detector import detect
+import os
+
 from pydantic import BaseModel
-from models import (
+from ai_service.detector import detect
+from ai_service.models import (
     PredictionRequest,
     PredictionResponse,
     HealthResponse,
-    Detection
+    Detection,
 )
-
 app = FastAPI(
     title="AI Vision Service",
     version="0.1.0"
@@ -44,6 +45,29 @@ def models():
 def predict(req: PredictionRequest):
 
     detections = detect(req.image)
+
+    # Kiểm tra có phát hiện người không
+    person_detected = any(
+        item["label"] == "person"
+        for item in detections
+    )
+
+    payload = {
+        "cameraId": "cam01",
+        "personDetected": person_detected,
+        "isAuthorized": False
+    }
+
+    # Gửi sang A6
+    try:
+        requests.post(
+            "http://IP_A6:8000/vision",
+            json=payload,
+            timeout=3
+        )
+        print("Đã gửi dữ liệu sang A6")
+    except Exception as e:
+        print("Lỗi gửi A6:", e)
 
     return PredictionResponse(
         detections=[

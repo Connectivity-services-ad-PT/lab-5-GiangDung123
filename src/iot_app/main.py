@@ -311,7 +311,19 @@ from pydantic import BaseModel
 class VisionRequest(BaseModel):
     image: str
 
+
+class Detection(BaseModel):
+    label: str
+    confidence: float
+    bbox: list[int]
+
+
+class VisionResponse(BaseModel):
+    detections: list[Detection]
+    processing_ms: int
+
 @app.post("/vision", response_model=VisionResponse)
+
 def vision(req: VisionRequest):
 
     try:
